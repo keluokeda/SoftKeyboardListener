@@ -2,6 +2,7 @@ package com.ufind.softkeyboardlistener;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Resources;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -11,6 +12,7 @@ import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.inputmethod.InputMethodManager;
 
+import java.lang.reflect.Method;
 import java.util.logging.Logger;
 
 public class MainActivity extends AppCompatActivity {
@@ -19,20 +21,22 @@ public class MainActivity extends AppCompatActivity {
     private int keyboardHeight = -1;
     private View mView;
 
+    //正常情况下 当前屏幕高度 = activity高度+状态栏高度+导航栏高度
+    //如果小于此值 差值就是软键盘高度
     private ViewTreeObserver.OnGlobalLayoutListener mOnGlobalLayoutListener = new ViewTreeObserver.OnGlobalLayoutListener() {
         @Override
         public void onGlobalLayout() {
-            com.orhanobut.logger.Logger.d("statusBarHeight = "+getStatusBarHeight()+" ,rootView height = "+rootLayout.getRootView().getHeight()+" ,view height = "+rootLayout.getHeight());
-            if (rootLayout.getHeight() < rootLayout.getRootView().getHeight() - getStatusBarHeight()){
+            com.orhanobut.logger.Logger.d("statusBarHeight = " + getStatusBarHeight() + " ,rootView height = " + rootLayout.getRootView().getHeight() + " ,view height = " + rootLayout.getHeight());
+            if (rootLayout.getHeight() < rootLayout.getRootView().getHeight() - getStatusBarHeight() - getNavigationBarHeight()) {
                 com.orhanobut.logger.Logger.d("show");
-                if (keyboardHeight ==-1){
-                    keyboardHeight = rootLayout.getRootView().getHeight() - rootLayout.getHeight() - getStatusBarHeight();
-                    com.orhanobut.logger.Logger.d("keyboard height = "+keyboardHeight);
+                if (keyboardHeight == -1) {
+                    keyboardHeight = rootLayout.getRootView().getHeight() - rootLayout.getHeight() - getStatusBarHeight() - getNavigationBarHeight();
+                    com.orhanobut.logger.Logger.d("keyboard height = " + keyboardHeight);
                 }
-                if (mView.getVisibility() == View.VISIBLE){
+                if (mView.getVisibility() == View.VISIBLE) {
                     mView.setVisibility(View.GONE);
                 }
-            }else {
+            } else {
                 com.orhanobut.logger.Logger.d("hide");
             }
         }
@@ -46,6 +50,41 @@ public class MainActivity extends AppCompatActivity {
             result = getResources().getDimensionPixelSize(resourceId);
         }
         return result;
+    }
+
+    @SuppressWarnings("all")
+    //获取是否存在NavigationBar
+    public boolean checkDeviceHasNavigationBar() {
+        boolean hasNavigationBar = false;
+        Resources rs = this.getResources();
+        int id = rs.getIdentifier("config_showNavigationBar", "bool", "android");
+        if (id > 0) {
+            hasNavigationBar = rs.getBoolean(id);
+        }
+        try {
+            Class systemPropertiesClass = Class.forName("android.os.SystemProperties");
+            Method m = systemPropertiesClass.getMethod("get", String.class);
+            String navBarOverride = (String) m.invoke(systemPropertiesClass, "qemu.hw.mainkeys");
+            if ("1".equals(navBarOverride)) {
+                hasNavigationBar = false;
+            } else if ("0".equals(navBarOverride)) {
+                hasNavigationBar = true;
+            }
+        } catch (Exception e) {
+
+        }
+        return hasNavigationBar;
+
+    }
+
+
+    protected int getNavigationBarHeight() {
+        if (!checkDeviceHasNavigationBar()) {
+            return 0;
+        }
+        Resources resources = getResources();
+        int resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android");
+        return resources.getDimensionPixelSize(resourceId);
     }
 
     @Override
@@ -63,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public void show(View view){
+    public void show(View view) {
         hideSoftKeyBoard();
         ViewGroup.LayoutParams layoutParams = mView.getLayoutParams();
         layoutParams.height = keyboardHeight;
